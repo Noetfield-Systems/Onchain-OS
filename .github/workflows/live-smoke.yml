@@ -1,0 +1,34 @@
+name: Onchain OS — Live HTTPS Read-only Smoke
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify public domain, API, documents and assets
+        env:
+          BASE: https://onchain-os-staging.up.railway.app
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 6); do
+            if curl --fail --silent --show-error --max-time 18 "$BASE/api/health" -o health.json; then break; fi
+            sleep 3
+          done
+          cat health.json
+          python3 - <<'PY'
+          import json
+          h=json.load(open('health.json'))
+          assert h['status']=='ok',h
+          assert h['persistence']=='postgresql',h
+          print('PASS: Railway HTTP API and persistent database')
+          PY
+          for p in /onchain/ /onchain/architect/ /onchain/network/ /onchain/economy/ /onchain/proof/ /onchain/app.js /onchain/styles.css /api/public/config; do
+            curl --fail --silent --show-error --max-time 18 "$BASE$p" -o /dev/null
+            echo "PASS: $p"
+          done
+          echo "PASS: HTTPS frontend and read-only API smoke"
