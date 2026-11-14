@@ -8,7 +8,7 @@ async function req(path,{method="GET",data,token,headers={}}={}){
 const health=await req("/api/health");assert.equal(health.status,200);assert.equal(health.body.persistence,"postgresql");
 const config=await req("/api/public/config");assert.equal(config.body.scenarios.length,6);
 const index=await fetch(base+"/onchain/architect/");assert.equal(index.status,200);
-assert.match(await index.text(),/Business-to-Onchain Architect/);
+assert.match(await index.text(),/id="architectView"/);
 const body={scenario:"business",goal:"Our existing Canadian B2B firm wants USDC payment and automated finance operations.",region:"CA",targets:["CA","AE"],capabilities:["PAYMENTS","AI"],budget:"5k-25k",funding:"usdc"};
 const created=await req("/api/architect/intents",{method:"POST",data:body,headers:{"Idempotency-Key":"integration-case-"+Date.now()}});
 assert.equal(created.status,201);const id=created.body.id,token=created.body.project_key;assert.ok(token.length>=32);
