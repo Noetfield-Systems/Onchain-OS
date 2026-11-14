@@ -43,6 +43,28 @@ async function getIntent(req,id){
  if(!token||!safeEqual(row.access_hash,accessHash(token)))throw Object.assign(new Error("Project key required or invalid"),{status:404});
  return row;
 }
+// An optional nonblocking-to-commerce integration: local PostgreSQL remains the
+// canonical Architect record; existing Noetfield intake can alert Founder ops.
+async function notifyIntake(kind,record){
+ const url=String(process.env.CRM_FORWARD_URL||"");
+ if(!url)return {status:"NOT_CONFIGURED"};
+ if(!url.startsWith("https://www.noetfield.com/api/intake"))return {status:"INVALID_ORIGIN"};
+ try{
+  const rsp=await fetch(url,{method:"POST",signal:AbortSignal.timeout(4500),headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({
+    vector:kind==="proposal"?"business-to-onchain-architect":"onchain-os-provider",
+    form_id:kind==="proposal"?"onchain-architect-proposal":"onchain-os-provider-application",
+    organization:record.company||record.name||"Onchain OS project",
+    contact_name:record.name||null,
+    contact_email:record.email,
+    message:record.message,
+    request_id:record.request_id,
+    source:"onchain-os",
+    metadata:{project_id:record.project_id||null,source_repo:"Noetfield-Systems/Onchain-OS",network:"global-economic-bridge"}
+  })});
+  const body=await rsp.json().catch(()=>({}));
+  return {status:body.intake_persisted===true?"CRM_PERSISTED":rsp.ok?"CRM_NOTIFIED":"CRM_FAILED",reference:body.intake_id||body.notification_reference||null};
+ }catch(e){console.error("onchain CRM notification:",e.message);return {status:"CRM_UNAVAILABLE"}}
+}
 async function stripeCheckout(intentId,email){
  if(!process.env.STRIPE_SECRET_KEY||!process.env.STRIPE_PRICE_DIAGNOSTIC)throw Object.assign(new Error("Online checkout is not connected yet. Use Request a Proposal to start a real engagement."),{status:503,code:"CHECKOUT_NOT_CONFIGURED"});
  const origin=(process.env.APP_ORIGIN||"").replace(/\/$/,"");
@@ -91,7 +113,8 @@ async function handleApi(req,res,path){
   const id=randomUUID(),cap=Array.isArray(b.capabilities)?b.capabilities.filter(x=>Object.hasOwn(CAPABILITIES,x)).slice(0,10):[];
   const regions=Array.isArray(b.regions)?b.regions.map(x=>String(x).slice(0,2).toUpperCase()).slice(0,6):[];
   await query("INSERT INTO onchain_os.provider_applications(id,display_name,email,capabilities,regions,description,website) VALUES($1,$2,$3,$4,$5,$6,$7)",[id,String(b.name).slice(0,120),b.email,JSON.stringify(cap),JSON.stringify(regions),String(b.description||"").slice(0,1200),String(b.website||"").slice(0,300)]);
-  return json(res,201,{id,status:"APPLICATION_RECEIVED_PENDING_REVIEW"});
+  const crm=await notifyIntake("provider",{request_id:"ONCHAIN-PROVIDER-"+id,name:String(b.name).slice(0,120),email:b.email,message:String(b.description||"Provider application").slice(0,1200)});
+  return json(res,201,{id,status:"APPLICATION_RECEIVED_PENDING_REVIEW",crm_notification:crm.status});
  }
  if(path==="/api/stripe/webhook"&&req.method==="POST"){
   if(!process.env.STRIPE_WEBHOOK_SECRET)return error(res,503,"NOT_CONFIGURED","Webhook unavailable");
@@ -150,7 +173,9 @@ async function handleApi(req,res,path){
     const requestId=randomUUID();await query("INSERT INTO onchain_os.proposal_requests(id,intent_id,email,company,notes,route_id) VALUES($1,$2,$3,$4,$5,$6)",[requestId,id,b.email,String(b.company||"").slice(0,160),String(b.notes||"").slice(0,2000),String(b.route_id||"").slice(0,60)]);
     await query("UPDATE onchain_os.intents SET status='PROPOSAL_REQUESTED',contact_email=$2,updated_at=now() WHERE id=$1",[id,b.email]);
     await audit(id,"ProposalRequested",{request_id:requestId});
-    return {request_id:requestId,status:"PROPOSAL_REQUESTED",message:"Your project request is recorded. No payment has been charged."};
+    const crm=await notifyIntake("proposal",{request_id:"ONCHAIN-PROPOSAL-"+requestId,company:String(b.company||"").slice(0,160),email:b.email,project_id:id,message:"Business-to-Onchain Architect proposal request. Goal: "+String(row.data.goal||"").slice(0,1000)+"; Notes: "+String(b.notes||"").slice(0,1000)});
+    await audit(id,"CommercialIntakeForwardAttempt",{request_id:requestId,crm_status:crm.status,crm_reference:crm.reference||null});
+    return {request_id:requestId,status:"PROPOSAL_REQUESTED",crm_notification:crm.status,message:"Your project request is recorded. No payment has been charged."};
    });return json(res,201,result);
   }
   if(action==="checkout"&&req.method==="POST"){

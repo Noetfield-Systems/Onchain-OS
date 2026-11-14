@@ -10,6 +10,7 @@ This repository is the independent source for the new **NOETFIELD OS** public ap
 - 3 multi-provider route alternatives and honest unsourced capability placeholders (never fake partners).
 - PostgreSQL-backed persistent private projects, owner keys, assessment, revisions, route quotes, publication, proposal requests and provider applications.
 - Live public opportunity and independently verified provider inventories (no synthetic counts).
+- Optional real Founder-ops notification through the existing Noetfield intake API; local PostgreSQL remains the canonical Architect record.
 - Optional Stripe Checkout integration with signature-verified payment webhook and real paid-status transition. Without Stripe configuration, actionable proposal requests remain available.
 - Existing first-party RWA Clinic and control sandbox links. These demos are not silently copied into this app.
 
