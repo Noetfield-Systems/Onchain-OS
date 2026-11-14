@@ -145,4 +145,17 @@ function initProviderForm(){
  }catch(e){notice.textContent=e.message}finally{button.disabled=false}});
 }
 initNavigation();renderChoices();attachArchitect();initProviderForm();recover();
-routeTo(location.pathname.replace(/^\/onchain/,"")||"/",true);
+// Preserve existing public CTA deep links from the original Noetfield site.
+const oldEntry = new URLSearchParams(location.search);
+const solution = String(oldEntry.get("solution")||"").toLowerCase();
+const legacyScenario = ({rwa:"asset",privatecredit:"asset",policy:"business",stablecoin:"crypto",agents:"agents"})[solution];
+const legacyHash = location.hash.toLowerCase();
+if(legacyScenario)setScenario(legacyScenario);
+const initialRoute = location.pathname.replace(/^\/onchain/,"")||"/";
+const legacyTarget=initialRoute==="/" ? (
+ (legacyScenario||legacyHash==="#project"||legacyHash==="#launch")?"/architect/":
+ ["#token","#token-design","#stablecoin"].includes(legacyHash)?"/economy/":
+ ["#evidence","#proof","#demos"].includes(legacyHash)?"/proof/":
+ ["#community","#ecosystem-vision","#network"].includes(legacyHash)?"/network/":"/"
+) :initialRoute;
+routeTo(legacyTarget,true);
