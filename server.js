@@ -164,11 +164,11 @@ async function handleApi(req,res,path){
 }
 const contentTypes={".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8",".svg":"image/svg+xml",".png":"image/png",".webp":"image/webp",".json":"application/json; charset=utf-8",".ico":"image/x-icon"};
 async function serveStatic(req,res,path){
- const target=(path==="/"||path==="/onchain"||path==="/onchain/"||path.startsWith("/onchain/"))?"/index.html":path;
+ const target=path==="/onchain/styles.css"?"/styles.css":path==="/onchain/app.js"?"/app.js":(path==="/"||path==="/onchain"||path==="/onchain/"||path.startsWith("/onchain/"))?"/index.html":path;
  const full=normalize(join(STATIC_ROOT,decodeURIComponent(target)));
  if(!full.startsWith(STATIC_ROOT))return error(res,403,"FORBIDDEN","Invalid path");
  try{const st=await stat(full);if(!st.isFile())throw Error("Not file");const raw=await readFile(full);
- res.writeHead(200,{"Content-Type":contentTypes[extname(full)]||"application/octet-stream","Cache-Control":target==="/index.html"?"no-store":"public, max-age=3600","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin","Content-Security-Policy":"default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com","X-Frame-Options":"DENY"});return res.end(raw)}catch{return error(res,404,"NOT_FOUND","Page not found")}
+ res.writeHead(200,{"Content-Type":contentTypes[extname(full)]||"application/octet-stream","Cache-Control":target==="/index.html"?"no-store":"public, max-age=3600","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin","Content-Security-Policy":"default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://www.noetfield.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com","X-Frame-Options":"DENY"});return res.end(raw)}catch{return error(res,404,"NOT_FOUND","Page not found")}
 }
 await init();
 createServer(async(req,res)=>{
