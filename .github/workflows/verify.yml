@@ -1,0 +1,46 @@
+name: Onchain OS — Test & Verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: onchain_test
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: onchain_os_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U onchain_test -d onchain_os_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://onchain_test:testpass@localhost:5432/onchain_os_test
+      PORT: 3000
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax and engine tests
+        run: npm run check && npm test
+      - name: API and persistence smoke
+        run: |
+          node server.js > /tmp/onchain-os.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node tests/smoke.mjs
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/onchain-os.log || true
